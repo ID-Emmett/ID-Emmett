@@ -12,7 +12,7 @@
       height: 100%;
       margin: 0;
       padding: 0;
-      background: url('/images/bg.png');
+      background: url('./images/bg.png');
       background-position: center 0;
       background-size: 100% 100%;
       background-repeat: no-repeat;
@@ -60,8 +60,8 @@
     <div class="sub-title">国内领先的数智文旅AI+数据运营服务商</div>
   </div>
 </body>
-<script src="/js/three.js"></script>
-<script src="/js/rotationControls.js"></script>
+<script src="./js/three.js"></script>
+<script src="./js/rotationControls.js"></script>
 <script>
 
   function onWindowResize () { // 监听屏幕宽高
@@ -97,7 +97,7 @@
   let earthImg, earthParticles = new THREE.Object3D(),
     cloud = new THREE.Object3D(),
     hexagon = new THREE.Object3D(),
-    dotTexture = new THREE.TextureLoader().load('/images/dot.png'),
+    dotTexture = new THREE.TextureLoader().load('./images/dot.png'),
     hexagonColor = ['#55e1ee', '#55e1ee']
   earthParticles.name = 'earthParticles'
 
@@ -170,7 +170,7 @@
   main()
   function main () {
     earthImg = document.createElement('img')
-    earthImg.src = '/images/world.png'
+    earthImg.src = './images/world.png'
     earthImg.onload = () => {
       let earthCanvas = document.createElement('canvas')
       earthCtx = earthCanvas.getContext('2d')
@@ -368,7 +368,7 @@
     }
     // SphereGeometry 参数 半径1倍的地球大小，经纬度两个方向
     let geometry = new THREE.SphereGeometry(1 * radius, 66, 44),
-      map = new THREE.TextureLoader().load('/images/cloud-min.png')
+      map = new THREE.TextureLoader().load('./images/cloud-min.png')
     map.wrapT = THREE.ClampToEdgeWrapping
     map.wrapS = THREE.ClampToEdgeWrapping
     let material = new THREE.XRayMaterial({
