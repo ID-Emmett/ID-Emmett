@@ -2,338 +2,383 @@
 <html>
 
 <head>
-  <style>
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      background: url('./images/bg.png');
-      background-position: center 0;
-      background-size: 100% 100%;
-      background-repeat: no-repeat;
-      position: relative;
-    }
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: url('./images/bg.png');
+            background-position: center 0;
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            position: relative;
+        }
 
-    .title {
-      font-size: 72px;
-      position: absolute;
-      top: 390px;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
+        .title {
+            font-size: 3.6vw;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
 
-    .title>.sub-title {
-      font-size: 24px;
-      margin-top: 33px;
-      padding: 8px 0;
-      border-top: 1px solid #fff;
-      border-bottom: 1px solid #fff;
-      width: 426px;
-      opacity: 0.8;
-    }
+        .title>.sub-title {
+            font-size: 1.1vw;
+            margin-top: 1.1vw;
+            padding: 8px 0;
+            border-top: 1px solid #fff;
+            border-bottom: 1px solid #fff;
+            opacity: 0.8;
+        }
 
-    .but {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-    }
+        .but {
+            position: fixed;
+            top: 10px;
+            left: 100px;
+        }
 
-    #three {}
-  </style>
+        #three {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
 </head>
 
 <body>
-  <div id='three'></div>
-  <div class="but">
-    <button onclick="showText()">文本</button>
-    <button onclick="setBG()">背景</button>
-  </div>
-  <div class="title">
-    <div class="main-title">科技赋能 让数智农文旅更精彩</div>
-    <div class="sub-title">国内领先的数智文旅AI+数据运营服务商</div>
-  </div>
+    <div id='three'></div>
+    <div class="but">
+        <button onclick="showText()">文本</button>
+        <button onclick="setBG()">背景</button>
+    </div>
+    <div class="title">
+        <div class="main-title">科技赋能 让数智农文旅更精彩</div>
+        <div class="sub-title">国内领先的数智文旅AI+数据运营服务商</div>
+    </div>
 </body>
 <script src="./js/three.js"></script>
 <script src="./js/rotationControls.js"></script>
+<script type="text/javascript" src="./js/stats.min.js"></script>
+<script type="text/javascript" src="./js/hexagonData.js"></script>
 <script>
 
-  function onWindowResize () { // 监听屏幕宽高
+    let earthDom = document.getElementById("three");
 
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    function onWindowResize() { // 监听屏幕宽高
+        camera.aspect = earthDom.clientWidth / earthDom.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(earthDom.clientWidth, earthDom.clientHeight);
+    }
 
-  }
+    function setBG() {
+        document.getElementsByTagName('body')[0].style.background = "#" + ("00000" + ((Math.random() * 16777215 + 0.5) >> 0).toString(16)).slice(-6);
+    }
 
-  function setBG () {
-    document.getElementsByTagName('body')[0].style.background = "#" + ("00000" + ((Math.random() * 16777215 + 0.5) >> 0).toString(16)).slice(-6);
-  }
+    let elShow = false
+    function showText() {
+        elShow = !elShow
+        document.getElementsByClassName('title')[0].style.display = elShow ? 'flex' : 'none'
+    }
 
-  let elShow = false
-  function showText () {
-    elShow = !elShow
-    document.getElementsByClassName('title')[0].style.display = elShow ? 'none' : 'flex'
-  }
+    const CITY_RADIUS = 100,
+        CITY_MARGIN = 1,
+        BLINT_SPEED = 0.05,
+        HEXAGON_RADIUS = 3,
+        radius = 100
+    let scene, camera, renderer, clock
 
-  const CITY_RADIUS = 100,
-    CITY_MARGIN = 1,
-    BLINT_SPEED = 0.05,
-    HEXAGON_RADIUS = 3,
-    radius = 100
-  let scene, camera, renderer, clock
+    let particleBoxList = []
 
-  let particleBoxList = []
+    let earthBox = new THREE.Group() // 地球模组：将会包含地球大陆粒子、云层、六边形光圈
+    let isAutomaticRotation = true // 地球模组默认自动旋转
 
-  let earthBox = new THREE.Group() // 地球模组：将会包含地球大陆粒子、云层、六边形光圈
-  let isAutomaticRotation = true // 地球模组默认自动旋转
+    let earthImg, earthParticles = new THREE.Object3D(),
+        cloud = new THREE.Object3D(),
+        hexagon = new THREE.Object3D(),
+        dotTexture = new THREE.TextureLoader().load('./images/dot.png'),
+        hexagonColor = ['#55e1ee', '#55e1ee']
+    // earthParticles.name = 'earthParticles'
 
-  let earthImg, earthParticles = new THREE.Object3D(),
-    cloud = new THREE.Object3D(),
-    hexagon = new THREE.Object3D(),
-    dotTexture = new THREE.TextureLoader().load('./images/dot.png'),
-    hexagonColor = ['#55e1ee', '#55e1ee']
-  earthParticles.name = 'earthParticles'
+    let satellites = [] // 存放所有创建的精灵
 
-  let satellites = [] // 存放所有创建的精灵
-
-  /**  
- * 返回一个卫星和轨道的组合体  
- * @param satelliteSize 卫星的大小  
- * @param satelliteRadius 卫星的旋转半径  
- * @param rotation 组合体的x,y,z三个方向的旋转角度  
- * @param speedY 卫星y轴运动速度  
- * @param speedZ 卫星z轴运动速度  
- * @param scene 场景  
- * @returns {{satellite: THREE.Mesh, speed: *}} 卫星组合对象;速度  
- */
-
-  const initSatellite = (satelliteSize, satelliteRadius, rotation, speedY, speedZ) => {
-    // let track = new THREE.Mesh(new THREE.RingGeometry(satelliteRadius, satelliteRadius + 0.15, 50, 1), new THREE.MeshBasicMaterial()); // 轨道
-
-    //网格模型对象Mesh 、球体SphereGeometry
-    let centerMesh = new THREE.Mesh(new THREE.SphereGeometry(-10000, 0, 0), new THREE.MeshLambertMaterial()); //材质设定  
-    let satellite = new THREE.Sprite(new THREE.SpriteMaterial({ // 精灵材质
-      map: new THREE.CanvasTexture(sprite),
-      blending: THREE.AdditiveBlending
-    }));
-    satellite.scale.x = satellite.scale.y = satellite.scale.z = satelliteSize;
-    satellite.position.set(satelliteRadius, 0, 0);
-
-    let pivotPoint = new THREE.Object3D();
-
-    pivotPoint.add(satellite);
-    // pivotPoint.add(track); // 添加轨道
-    centerMesh.add(pivotPoint);
-
-    centerMesh.rotation.set(rotation.x, rotation.y, rotation.z);
-    // 设置粒子轨道的坐标并保存,入场动画使用
-    centerMesh.position.set(Math.random() * 400 - 200, Math.random() * 300 - 150, Math.random() * 5000)
-    initLiziBoxPosition.push({
-      x: centerMesh.position.x,
-      y: centerMesh.position.y,
-      z: centerMesh.position.z,
-    })
-    scene.add(centerMesh);
-    particleBoxList.push(centerMesh)
-
-    return { satellite: centerMesh, speedY, speedZ };
-  };
-  /**
-   * 实现发光星星  
-   * @param color 颜色的r,g和b值,比如：“123,123,123”;  
-   * @returns {Element} 返回canvas对象  
+    /**  
+   * 返回一个卫星和轨道的组合体  
+   * @param satelliteSize 卫星的大小  
+   * @param satelliteRadius 卫星的旋转半径  
+   * @param rotation 组合体的x,y,z三个方向的旋转角度  
+   * @param speedY 卫星y轴运动速度  
+   * @param speedZ 卫星z轴运动速度  
+   * @param scene 场景  
+   * @returns {{satellite: THREE.Mesh, speed: *}} 卫星组合对象;速度  
    */
-  const generateSprite = (color) => {
-    var canvas = document.createElement('canvas');
-    canvas.width = 16;
-    canvas.height = 16;
-    let context = canvas.getContext('2d');
-    let gradient = context.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width / 2);
-    gradient.addColorStop(0, 'rgba(' + color + ',1)');
-    gradient.addColorStop(0.2, 'rgba(' + color + ',1)');
-    gradient.addColorStop(0.4, 'rgba(' + color + ',.6)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0)');
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    return canvas;
-  };
-  let sprite = generateSprite('0,233,255') // 存储精灵材质
+
+    const initSatellite = (satelliteSize, satelliteRadius, rotation, speedY, speedZ) => {
+        // let track = new THREE.Mesh(new THREE.RingGeometry(satelliteRadius, satelliteRadius + 0.15, 50, 1), new THREE.MeshBasicMaterial()); // 轨道
+
+        //网格模型对象Mesh 、球体SphereGeometry
+        let centerMesh = new THREE.Mesh(new THREE.SphereGeometry(10000, 0, 0), new THREE.MeshLambertMaterial()); //材质设定  
+        let satellite = new THREE.Sprite(new THREE.SpriteMaterial({ // 精灵材质
+            map: new THREE.CanvasTexture(sprite),
+            blending: THREE.AdditiveBlending
+        }));
+        satellite.scale.x = satellite.scale.y = satellite.scale.z = satelliteSize;
+        satellite.position.set(satelliteRadius, 0, 0);
+
+        let pivotPoint = new THREE.Object3D();
+
+        pivotPoint.add(satellite);
+        // pivotPoint.add(track); // 添加轨道
+        centerMesh.add(pivotPoint);
+
+        centerMesh.rotation.set(rotation.x, rotation.y, rotation.z);
+        // 设置粒子轨道的坐标并保存,入场动画使用
+        centerMesh.position.set(Math.random() * 2000 - 1000, Math.random() * 300 - 150, Math.random() * 5000)
+        initLiziBoxPosition.push({
+            x: centerMesh.position.x,
+            y: centerMesh.position.y,
+            z: centerMesh.position.z,
+        })
+        scene.add(centerMesh);
+        particleBoxList.push(centerMesh)
+
+        return { satellite: centerMesh, speedY, speedZ };
+    };
+    /**
+     * 实现发光星星  
+     * @param color 颜色的r,g和b值,比如：“123,123,123”;  
+     * @returns {Element} 返回canvas对象  
+     */
+    const generateSprite = (color) => {
+        let canvas = document.createElement('canvas');
+        canvas.width = 16;
+        canvas.height = 16;
+        let context = canvas.getContext('2d');
+        let gradient = context.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width / 2);
+        gradient.addColorStop(0, 'rgba(' + color + ',1)');
+        gradient.addColorStop(0.2, 'rgba(' + color + ',1)');
+        gradient.addColorStop(0.4, 'rgba(' + color + ',.6)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        return canvas;
+    };
+    let sprite = generateSprite('0,233,255') // 存储精灵材质
 
 
-  main()
-  function main () {
-    earthImg = document.createElement('img')
-    earthImg.src = './images/world.png'
-    earthImg.onload = () => {
-      let earthCanvas = document.createElement('canvas')
-      earthCtx = earthCanvas.getContext('2d')
-      earthCanvas.width = earthImg.width
-      earthCanvas.height = earthImg.height
-      earthCtx.drawImage(earthImg, 0, 0, earthImg.width, earthImg.height)
-      earthImgData = earthCtx.getImageData(0, 0, earthImg.width, earthImg.height)
-      // basic scene 创建场景
-      createBasicScene()
-      // 光锥
-      createObjects()
-      // 球面打点
-      createEarthParticles()
-      // 云层
-      createCloudGrid()
-      // 球面粒子闪烁
-      animate()
-      // 监听宽高变化
-      onWindowResize()
+    main()
+    function main() {
+        earthImg = document.createElement('img')
+        earthImg.src = './images/world.png'
+        earthImg.onload = () => {
+            let earthCanvas = document.createElement('canvas')
+            earthCtx = earthCanvas.getContext('2d')
+            earthCanvas.width = earthImg.width
+            earthCanvas.height = earthImg.height
+            earthCtx.drawImage(earthImg, 0, 0, earthImg.width, earthImg.height)
+            earthImgData = earthCtx.getImageData(0, 0, earthImg.width, earthImg.height)
+            // basic scene 创建场景
+            createBasicScene()
+            // 光锥
+            createObjects()
+            // 球面打点
+            createEarthParticles()
+            // 云层
+            createCloudGrid()
+            // 初始化帧数插件
+            initStats()
+            // 球面粒子闪烁
+            animate()
+            // 监听宽高变化
+            onWindowResize()
 
-      window.addEventListener('resize', onWindowResize, false);
-      window.addEventListener('mousedown', onMouseDown, false);
-      window.addEventListener('mouseup', onMouseup, false);
+            window.addEventListener('resize', onWindowResize, false);
 
-
-      if (arrive) { // 设定准备在下一次render时初始化精灵以作入场动效
-        arrive = false
-        startTime = new Date().getTime();
-        setTimeout(() => timer = false, TIME);
-      }
-
+            if (arrive) { // 设定准备在下一次render时初始化精灵以作入场动效
+                arrive = false
+                startTime = new Date().getTime();
+                setTimeout(() => timer = false, TIME);
+            }
+        }
     }
-  }
-  let arrive = true
-  let timer = true
-  let startTime
-  let endPosition = true
-  const TIME = 1000 * 5
-  let initLiziBoxPosition = []
+    let arrive = true
+    let timer = true
+    let startTime
+    let endPosition = true
+    const TIME = 1000 * 5
+    let initLiziBoxPosition = []
 
-  function render () {
-    let delta = clock.getDelta()
 
-    if (isAutomaticRotation) {
-      earthBox.rotation.y -= 0.005
-      earthBox.rotation.z -= 0.001
+    //初始化性能插件
+    let stats;
+
+    function initStats() {
+        stats = new Stats();
+        document.body.appendChild(stats.dom);
     }
 
-    for (let i = 0; i < satellites.length; i++) { // 精灵
-      if (!timer) {  // 正常轨迹
+    function render() {
+
+        // let delta = clock.getDelta()
+        stats.update();
+
+        requestAnimationFrame(render)
+
+        if (isAutomaticRotation) {
+            earthBox.rotation.y -= 0.005
+            earthBox.rotation.z -= 0.001
+        }
+
+        for (let i = 0; i < satellites.length; i++) { // 精灵
+            satellites[i].satellite.rotation.y += satellites[i].speedY;
+            satellites[i].satellite.rotation.z += satellites[i].speedZ;
+        }
+        renderer.render(scene, camera)
+    }
+    function renderInit() {
+        stats.update();
+
+        if (isAutomaticRotation) {
+            earthBox.rotation.y -= 0.005
+            earthBox.rotation.z -= 0.001
+        }
+
+        for (let i = 0; i < satellites.length; i++) { // 精灵
+            if (!timer) {  // 正常轨迹
+                particleBoxList[i].position.set(0, 0, 0)
+                earthBox.scale.set(1, 1, 1);
+                earthBox.position.set(0, 0, 0)
+                if (i === satellites.length - 1) {
+                    endPosition = false
+                    render()
+                }
+            } else { // 初始化->粒子运动到原本轨迹
+                let remaining = (TIME - (new Date().getTime() - startTime)) // 剩余时间
+                // 初始化坐标值除以总时间乘以剩余时间得到该时间段内应到达的坐标值
+
+                let x = (initLiziBoxPosition[i].x / TIME) * remaining
+                let y = (initLiziBoxPosition[i].y / TIME) * remaining
+                let z = (initLiziBoxPosition[i].z / TIME) * remaining
+
+                let eart = 1 - (0.6 / TIME * remaining)
+                let eartPositiony = (-100 / TIME * remaining)
+                // let eartPositionz =  (-100 / TIME * remaining)
+
+                earthBox.scale.set(eart, eart, eart);
+                earthBox.position.set(0, eartPositiony, 0);
+                particleBoxList[i].position.set(x, y, z)
+
+                // earthParticles.children[0].material.color = {
+                //   b: 0.036,
+                //   g:0.0155,
+                //   r: 0.037
+                // }
+                // earthParticles.children[1].material.color = {
+                //   b: 0.036,
+                //   g:0.0155,
+                //   r: 0.037
+                // }
+
+            }
+        }
         if (endPosition) {
-
-          if (i === satellites.length - 1) endPosition = false
-          particleBoxList[i].position.set(0, 0, 0)
-          earthBox.scale.set(1, 1, 1);
+            requestAnimationFrame(renderInit)
+            renderer.render(scene, camera)
         }
 
-        satellites[i].satellite.rotation.y += satellites[i].speedY;
-        satellites[i].satellite.rotation.z += satellites[i].speedZ;
-      } else { // 初始化->粒子运动到原本轨迹
-        let remaining = (TIME - (new Date().getTime() - startTime)) // 剩余时间
-
-        // 初始化坐标值除以总时间乘以剩余时间得到该时间段内应到达的坐标值
-
-        let x = (initLiziBoxPosition[i].x / TIME) * remaining
-        let y = (initLiziBoxPosition[i].y / TIME) * remaining
-        let z = (initLiziBoxPosition[i].z / TIME) * remaining
-
-        let eart = 1 - (0.6 / TIME * remaining)
-
-        earthBox.scale.set(eart, eart, eart);
-        particleBoxList[i].position.set(x, y, z)
-
-
-        // earthParticles.children[0].material.color = {
-        //   b: 0.036,
-        //   g:0.0155,
-        //   r: 0.037
-        // }
-        // earthParticles.children[1].material.color = {
-        //   b: 0.036,
-        //   g:0.0155,
-        //   r: 0.037
-        // }
-
-      }
     }
 
-    renderer.render(scene, camera)
-  }
-  function createBasicScene () {
-    let dom = document.getElementById("three");
-    scene = new THREE.Scene(); // 创建场景
-    camera = new THREE.PerspectiveCamera(20, dom.clientWidth / dom.clientHeight, 0.1, 1040);
-    camera.position.set(0, 0, 940);//设置相机位置  
-    renderer = new THREE.WebGLRenderer({
-      alpha: true, // 背景透明
-      antialias: true
-    });
-    renderer.setSize(dom.clientWidth, dom.clientHeight);//设置窗口尺寸  
-    dom.appendChild(renderer.domElement);
 
-    clock = new THREE.Clock() // 时钟
+    function createBasicScene() {
+        // let dom = document.getElementById("three");
+        scene = new THREE.Scene(); // 创建场景
+        camera = new THREE.PerspectiveCamera(20, earthDom.clientWidth / earthDom.clientHeight, 0.1, 1040);
+        camera.position.set(0, 0, 940);//设置相机位置  
+        renderer = new THREE.WebGLRenderer({
+            alpha: true, // 背景透明
+            antialias: true
+        });
+        renderer.setSize(earthDom.clientWidth, earthDom.clientHeight);//设置窗口尺寸  
+        earthDom.appendChild(renderer.domElement);
 
-    let earthTrack = new THREE.Group() // 存放随地球旋转的一条精灵串
+        clock = new THREE.Clock() // 时钟
 
-    // 流放精灵（随机分发xyz轴位置并移动）
-    for (let i = 0; i < 300; i++) {
-      satellites.push(initSatellite(Math.random() * 4, 190, { x: -Math.PI * i * 0.35, y: Math.PI * i * 0.35, z: i * 0.13 }, 0.0004, 0.001));
-      satellites.push(initSatellite(2.2, 2.5 * radius, { x: -Math.PI * i * 0.001, y: Math.PI * i * Math.random(), z: i * 0.13 }, 0.0005, 0.001));
-    }
+        let earthTrack = new THREE.Group() // 存放随地球旋转的一条精灵串
 
-    // 精灵串（连成轨道）
-    for (let i = 0; i < 150; i++) {
-      satellites.push(initSatellite(3.2, 1.5 * radius, { x: -Math.PI * 0.42, y: Math.PI * 0.95, z: i * 0.13 }, 0.0, 0.011));
-      satellites.push(initSatellite(2, 1.2 * radius, { x: -Math.PI * Math.random() * 0.42, y: Math.PI * 0.15, z: i * 0.13 }, 0.000, 0.005));
+        // 精灵串
+        for (let i = 0; i < 150; i++) {
 
-      // 添加随地球固定旋转的精灵
-      let satel = initSatellite(2.2, 1.5 * radius, { x: -Math.PI * 0.22, y: Math.PI * 0.25, z: i * 0.13 }, 0.0, 0.005)
-      satellites.push(satel);
-      earthTrack.add(satel.satellite)
-    }
-    earthBox.add(earthTrack)
-  }
+            // 随机流动的精灵（随机分发xyz轴位置并移动）
+            // satellites.push(initSatellite(Math.random() * 4, 2.5 * radius, { x: -Math.PI * Math.random() * 400 - 200, y: Math.PI * Math.random() * 400 - 200, z: Math.random() * 400 - 200 }, 0.0004, 0.001));
 
-  // 地标
-  function createObjects () {
-    for (let i = 0, length = countries.length; i < length; i++) {
-      const position = createPosition(countries[i].position)
-      const index = Math.floor(Math.random() * 2)
-      createHexagon(position, index) // 地标
-    }
-  }
+            // 围绕地球散落的精灵
+            satellites.push(initSatellite(Math.random() * 4, 1.2 * radius, { x: -Math.PI * Math.random() * 0.42, y: Math.PI * 0.15, z: Math.random() * 200 - 100 }, 0.000, 0.005));
 
-  // 云层
-  function createCloudGrid () {
-    THREE.XRayMaterial = function (options) {
-      let uniforms = {
-        uTex: {
-          type: "t",
-          value: options.map || new THREE.Texture
-        },
-        offsetRepeat: {
-          value: new THREE.Vector4(0, 0, 1, 1)
-        },
-        alphaProportion: {
-          type: "1f",
-          value: options.alphaProportion || .5
-        },
-        diffuse: {
-          value: options.color || new THREE.Color(16777215)
-        },
-        opacity: {
-          value: options.opacity || 1
-        },
-        gridOffset: {
-          value: 0
+            // 固定的轨道精灵
+            satellites.push(initSatellite(3.2, 1.5 * radius, { x: -Math.PI * 0.42, y: Math.PI * 0.95, z: i * 0.13 }, 0.0, -0.011));
+
+            // 添加随地球固定旋转的轨道精灵
+            let satel = initSatellite(2.2, 1.5 * radius, { x: -Math.PI * 0.22, y: Math.PI * 0.25, z: i * 0.13 }, 0.0, 0.007)
+
+            // 随地球固定旋转的散落的精灵
+            // let satelScatter = initSatellite(Math.random() * 4,  (2 + Math.random()) * radius, { x: -Math.PI * Math.random() * 0.92, y: Math.PI * 0.15, z: Math.random() * 200 - 100 }, 0.000, 0.005);
+
+            let satelScatter = initSatellite(2, 1.7 * radius, { x: -Math.PI * Math.random() * 0.92, y: Math.PI * 0.15, z: Math.random() * 200 - 100 }, 0.000, 0.005);
+
+            satellites.push(satel);
+            satellites.push(satelScatter);
+            earthTrack.add(satel.satellite)
+            earthTrack.add(satelScatter.satellite)
         }
-      }
-      // 着色器
-      return new THREE.ShaderMaterial({
-        uniforms: uniforms,
-        vertexShader: ` 
+        earthTrack.name = 'earthTrack'
+        earthBox.add(earthTrack)
+    }
+
+    // 地标
+    function createObjects() {
+        for (let i = 0, length = countries.length; i < length; i++) {
+            const position = createPosition(countries[i].position)
+            const index = Math.floor(Math.random() * 2)
+            createHexagon(position, index) // 地标
+        }
+    }
+
+    // 云层
+    function createCloudGrid() {
+        THREE.XRayMaterial = function (options) {
+            let uniforms = {
+                uTex: {
+                    type: "t",
+                    value: options.map || new THREE.Texture
+                },
+                offsetRepeat: {
+                    value: new THREE.Vector4(0, 0, 1, 1)
+                },
+                alphaProportion: {
+                    type: "1f",
+                    value: options.alphaProportion || .5
+                },
+                diffuse: {
+                    value: options.color || new THREE.Color(16777215)
+                },
+                opacity: {
+                    value: options.opacity || 1
+                },
+                gridOffset: {
+                    value: 0
+                }
+            }
+            // 着色器
+            return new THREE.ShaderMaterial({
+                uniforms: uniforms,
+                vertexShader: ` 
                     varying float _alpha;
                     varying vec2 vUv;
                     uniform vec4 offsetRepeat;
@@ -347,7 +392,7 @@
                     _alpha = max( 0.0, (_alpha - alphaProportion) / (1.0 - alphaProportion) );
                     }`,
 
-        fragmentShader: `
+                fragmentShader: `
                     uniform sampler2D uTex;
                     uniform vec3 diffuse;
                     uniform float opacity;
@@ -361,440 +406,213 @@
                     _a = _a * ( sin( vUv.y * 2000.0 + gridOffset ) * .2 + .2 );
                     gl_FragColor = vec4( texColor.rgb * diffuse, _a );
                     }`,
-        transparent: !0,
-        blending: THREE.AdditiveBlending,
-        depthTest: !1
-      })
-    }
-    // SphereGeometry 参数 半径1倍的地球大小，经纬度两个方向
-    let geometry = new THREE.SphereGeometry(1 * radius, 66, 44),
-      map = new THREE.TextureLoader().load('./images/cloud-min.png')
-    map.wrapT = THREE.ClampToEdgeWrapping
-    map.wrapS = THREE.ClampToEdgeWrapping
-    let material = new THREE.XRayMaterial({
-      map: map,
-      alphaProportion: .25,
-      color: new THREE.Color(263385797),
-      opacity: 0,
-      gridOffsetSpeed: .6
-    }),
-      mesh = new THREE.Mesh(geometry, material)
-    mesh.matrixAutoUpdate = !1
-    cloud.add(mesh)
-    earthBox.add(cloud)
-    scene.add(earthBox)
-  }
-
-  // 绘制六边形
-  function createHexagon (position, index) {
-    const color = hexagonColor[index]
-    let hexagonLine = new THREE.CircleGeometry(HEXAGON_RADIUS, 6) // 六边形
-    let hexagonPlane = new THREE.CircleGeometry(HEXAGON_RADIUS - CITY_MARGIN, 6)
-    let vertices = hexagonLine.vertices
-    vertices.shift() // 第一个节点是中心点
-    let circleLineGeom = new THREE.Geometry()
-    circleLineGeom.vertices = vertices
-    let materialLine = new THREE.MeshBasicMaterial({
-      color: color,
-      side: THREE.DoubleSide,
-    })
-    let materialPlane = new THREE.MeshBasicMaterial({
-      color: color,
-      side: THREE.DoubleSide,
-      opacity: 0.5
-    })
-    let circleLine = new THREE.LineLoop(circleLineGeom, materialLine)
-    let circlePlane = new THREE.Mesh(hexagonPlane, materialPlane)
-    circleLine.position.copy(position)
-    circlePlane.position.copy(position)
-    circlePlane.lookAt(new THREE.Vector3(0, 0, 0))
-    circleLine.lookAt(new THREE.Vector3(0, 0, 0))
-
-    hexagon.add(circleLine)
-    // hexagon.add(circlePlane) // 实心
-    earthBox.add(hexagon)
-    scene.add(earthBox)
-  }
-
-  // 画粒子地球
-  function createEarthParticles () {
-    let positions = []
-    let materials = []
-    let sizes = []
-    for (var i = 0; i < 2; i++) {
-      positions[i] = {
-        positions: []
-      }
-      sizes[i] = {
-        sizes: []
-      }
-      mat = new THREE.PointsMaterial()
-      mat.size = 8 // 粒子大小
-      mat.color = new THREE.Color(hexagonColor[0])
-      mat.map = dotTexture
-      mat.depthWrite = false
-      mat.transparent = true
-      mat.opacity = 0
-      mat.side = THREE.FrontSide
-      mat.blending = THREE.AdditiveBlending
-      let n = i / 2
-      mat.t_ = n * Math.PI * 2
-      mat.speed_ = BLINT_SPEED
-      mat.min_ = .2 * Math.random() + .5
-      mat.delta_ = .1 * Math.random() + .1
-      mat.opacity_coef_ = 1
-      materials.push(mat)
-    }
-    let spherical = new THREE.Spherical
-    spherical.radius = radius
-    const step = 250
-    for (let i = 0; i < step; i++) {
-      let vec = new THREE.Vector3
-      let radians = step * (1 - Math.sin(i / step * Math.PI)) / step + .5 // 每个纬线圈内的角度均分
-      for (let j = 0; j < step; j += radians) {
-        let c = j / step, // 底图上的横向百分比
-          f = i / step, // 底图上的纵向百分比
-          index = Math.floor(2 * Math.random())
-        pos = positions[index]
-        size = sizes[index]
-        if (isLandByUV(c, f)) { // 根据横纵百分比判断在底图中的像素值
-          spherical.theta = c * Math.PI * 2 - Math.PI / 2 // 横纵百分比转换为theta和phi夹角
-          spherical.phi = f * Math.PI // 横纵百分比转换为theta和phi夹角
-          vec.setFromSpherical(spherical) // 夹角转换为世界坐标
-          pos.positions.push(vec.x)
-          pos.positions.push(vec.y)
-          pos.positions.push(vec.z)
-          if (j % 3 === 0) size.sizes.push(6.0)
+                transparent: !0,
+                blending: THREE.AdditiveBlending,
+                depthTest: !1
+            })
         }
-      }
+        // SphereGeometry 参数 半径1倍的地球大小，经纬度两个方向
+        let geometry = new THREE.SphereGeometry(1 * radius, 66, 44),
+            map = new THREE.TextureLoader().load('./images/cloud-min.png')
+        map.wrapT = THREE.ClampToEdgeWrapping
+        map.wrapS = THREE.ClampToEdgeWrapping
+        let material = new THREE.XRayMaterial({
+            map: map,
+            alphaProportion: .25,
+            color: new THREE.Color(263385797),
+            opacity: 0,
+            gridOffsetSpeed: .6
+        }),
+            mesh = new THREE.Mesh(geometry, material)
+        mesh.matrixAutoUpdate = !1
+        cloud.add(mesh)
+        earthBox.add(cloud)
+        cloud.name = 'cloud'
+        // scene.add(earthBox)
     }
-    for (let i = 0; i < positions.length; i++) {
-      let pos = positions[i],
-        size = sizes[i],
-        bufferGeom = new THREE.BufferGeometry,
-        typedArr1 = new Float32Array(pos.positions.length),
-        typedArr2 = new Float32Array(size.sizes.length)
-      for (let j = 0; j < pos.positions.length; j++) {
-        typedArr1[j] = pos.positions[j]
-      }
-      for (let j = 0; j < size.sizes.length; j++) {
-        typedArr2[j] = size.sizes[j]
-      }
-      bufferGeom.addAttribute("position", new THREE.BufferAttribute(typedArr1, 3))
-      bufferGeom.addAttribute('size', new THREE.BufferAttribute(typedArr2, 1))
-      bufferGeom.computeBoundingSphere()
-      let particle = new THREE.Points(bufferGeom, materials[i])
-      earthParticles.add(particle)
+
+    // 绘制六边形
+    function createHexagon(position, index) {
+        const color = hexagonColor[index]
+        let hexagonLine = new THREE.CircleGeometry(HEXAGON_RADIUS, 6) // 六边形
+        let hexagonPlane = new THREE.CircleGeometry(HEXAGON_RADIUS - CITY_MARGIN, 6)
+        let vertices = hexagonLine.vertices
+        vertices.shift() // 第一个节点是中心点
+        let circleLineGeom = new THREE.Geometry()
+        circleLineGeom.vertices = vertices
+        let materialLine = new THREE.MeshBasicMaterial({
+            color: color,
+            side: THREE.DoubleSide,
+        })
+        let materialPlane = new THREE.MeshBasicMaterial({
+            color: color,
+            side: THREE.DoubleSide,
+            opacity: 0.5
+        })
+        let circleLine = new THREE.LineLoop(circleLineGeom, materialLine)
+        let circlePlane = new THREE.Mesh(hexagonPlane, materialPlane)
+        circleLine.position.copy(position)
+        circlePlane.position.copy(position)
+        circlePlane.lookAt(new THREE.Vector3(0, 0, 0))
+        circleLine.lookAt(new THREE.Vector3(0, 0, 0))
+
+        hexagon.add(circleLine)
+        // hexagon.add(circlePlane) // 实心
+        earthBox.add(hexagon)
+        hexagon.name = 'hexagon'
+        // scene.add(earthBox)
     }
-    earthBox.add(earthParticles)
-    scene.add(earthBox)
-    console.log(earthBox);
 
-  }
+    // 画粒子地球
+    function createEarthParticles() {
+        let positions = []
+        let materials = []
+        let sizes = []
+        for (var i = 0; i < 2; i++) {
+            positions[i] = { positions: [] }
+            sizes[i] = { sizes: [] }
+            mat = new THREE.PointsMaterial()
+            mat.size = 8 // 粒子大小
+            mat.color = new THREE.Color(hexagonColor[0])
+            mat.map = dotTexture
+            mat.depthWrite = false
+            mat.transparent = true
+            mat.opacity = 0
+            mat.side = THREE.FrontSide
+            mat.blending = THREE.AdditiveBlending
+            let n = i / 2
+            mat.t_ = n * Math.PI * 2
+            mat.speed_ = BLINT_SPEED
+            mat.min_ = .2 * Math.random() + .5
+            mat.delta_ = .1 * Math.random() + .1
+            mat.opacity_coef_ = 1
+            materials.push(mat)
+        }
+        let spherical = new THREE.Spherical
+        spherical.radius = radius
+        const step = 250
+        for (let i = 0; i < step; i++) {
+            let vec = new THREE.Vector3
+            let radians = step * (1 - Math.sin(i / step * Math.PI)) / step + .5 // 每个纬线圈内的角度均分
+            for (let j = 0; j < step; j += radians) {
+                let c = j / step, // 底图上的横向百分比
+                    f = i / step, // 底图上的纵向百分比
+                    index = Math.floor(2 * Math.random())
+                pos = positions[index]
+                size = sizes[index]
+                if (isLandByUV(c, f)) { // 根据横纵百分比判断在底图中的像素值
+                    spherical.theta = c * Math.PI * 2 - Math.PI / 2 // 横纵百分比转换为theta和phi夹角
+                    spherical.phi = f * Math.PI // 横纵百分比转换为theta和phi夹角
+                    vec.setFromSpherical(spherical) // 夹角转换为世界坐标
+                    pos.positions.push(vec.x)
+                    pos.positions.push(vec.y)
+                    pos.positions.push(vec.z)
+                    if (j % 3 === 0) size.sizes.push(6.0)
+                }
+            }
+        }
+        for (let i = 0; i < positions.length; i++) {
+            let pos = positions[i],
+                size = sizes[i],
+                bufferGeom = new THREE.BufferGeometry,
+                typedArr1 = new Float32Array(pos.positions.length),
+                typedArr2 = new Float32Array(size.sizes.length)
+            for (let j = 0; j < pos.positions.length; j++) {
+                typedArr1[j] = pos.positions[j]
+            }
+            for (let j = 0; j < size.sizes.length; j++) {
+                typedArr2[j] = size.sizes[j]
+            }
+            bufferGeom.addAttribute("position", new THREE.BufferAttribute(typedArr1, 3))
+            bufferGeom.addAttribute('size', new THREE.BufferAttribute(typedArr2, 1))
+            bufferGeom.computeBoundingSphere()
+            let particle = new THREE.Points(bufferGeom, materials[i])
+            earthParticles.add(particle)
+        }
+        earthParticles.name = 'earthParticles'
+        earthBox.add(earthParticles)
+        scene.add(earthBox)
+        console.log(earthBox);
 
-  // 球面粒子闪烁 持续循环
-  function animate () {
-    requestAnimationFrame(animate)
-    let objects = earthParticles.children
-    objects.forEach(obj => {
-      let material = obj.material
-      material.t_ += material.speed_
-      material.opacity = (Math.sin(material.t_) * material.delta_ + material.min_) * material.opacity_coef_
-      material.needsUpdate = true
-    })
-    render() // 执行渲染
-  }
-
-  function createPosition (lnglat) {
-    let spherical = new THREE.Spherical
-    spherical.radius = radius
-    const lng = lnglat[0]
-    const lat = lnglat[1]
-    // const phi = (180 - lng) * (Math.PI / 180)
-    // const theta = (90 + lat) * (Math.PI / 180)
-    const theta = (lng + 90) * (Math.PI / 180)
-    const phi = (90 - lat) * (Math.PI / 180)
-    spherical.phi = phi
-    spherical.theta = theta
-    let position = new THREE.Vector3()
-    position.setFromSpherical(spherical)
-    return position
-  }
-
-  function isLandByUV (c, f) {
-    if (!earthImgData) { // 底图数据
-      console.error('data error!')
     }
-    let n = parseInt(earthImg.width * c) // 根据横纵百分比计算图象坐标系中的坐标
-    o = parseInt(earthImg.height * f) // 根据横纵百分比计算图象坐标系中的坐标
-    return 0 === earthImgData.data[4 * (o * earthImgData.width + n)] // 查找底图中对应像素点的rgba值并判断
-  }
-  // 六边形坐标数据
-  var countries = [{
-    name: "中国",
-    position: [116.20, 39.55]
-  }, {
-    name: "中非共和国",
-    position: [18.35, 4.23]
-  }, {
-    name: "智利",
-    position: [-70.40, -33.24]
-  }, {
-    name: "乍得",
-    position: [14.59, 12.10]
-  }, {
-    name: "赞比亚",
-    position: [28.16, -15.28]
-  }, {
-    name: "越南",
-    position: [105.55, 21.05]
-  }, {
-    name: "约旦",
-    position: [35.52, 31.57]
-  }, {
-    name: "英属维尔京群岛",
-    position: [-64.37, 18.27]
-  }, {
-    name: "英国",
-    position: [-0.05, 51.36]
-  }, {
-    name: "印度尼西亚",
-    position: [106.49, -6.09]
-  }, {
-    name: "印度",
-    position: [77.13, 28.37]
-  }, {
-    name: "意大利",
-    position: [12.29, 41.54]
-  }, {
-    name: "以色列",
-    position: [35.12, 31.47]
-  }, {
-    name: "伊朗",
-    position: [51.30, 35.44]
-  }, {
-    name: "伊拉克",
-    position: [44.30, 33.20]
-  }, {
-    name: "马提尼克岛",
-    position: [-61.02, 14.36]
-  }, {
-    name: "马其顿",
-    position: [21.26, 42.01]
-  }, {
-    name: "马里",
-    position: [-7.55, 12.34]
-  }, {
-    name: "马来西亚",
-    position: [101.41, 3.09]
-  }, {
-    name: "吉布提",
-    position: [42.20, 11.08]
-  }, {
-    name: "基里巴斯",
-    position: [173.00, 1.30]
-  }, {
-    name: "洪都拉斯",
-    position: [-87.14, 14.05]
-  }, {
-    name: "赫德岛和麦当劳群岛",
-    position: [74.00, -53.00]
-  }, {
-    name: "荷属安的列斯",
-    position: [-69.00, 12.05]
-  }, {
-    name: "荷兰",
-    position: [4.54, 52.23]
-  }, {
-    name: "韩国",
-    position: [126.58, 37.31]
-  }, {
-    name: "海地",
-    position: [-72.20, 18.40]
-  }, {
-    name: "哈萨克斯坦",
-    position: [71.30, 51.10]
-  }, {
-    name: "圭亚那",
-    position: [-58.12, 6.50]
-  }, {
-    name: "瓜德罗普岛",
-    position: [-61.44, 16.00]
-  }, {
-    name: "古巴",
-    position: [-82.22, 23.08]
-  }, {
-    name: "根西岛",
-    position: [-2.33, 49.26]
-  }, {
-    name: "格鲁吉亚",
-    position: [44.50, 41.43]
-  }, {
-    name: "格陵兰",
-    position: [-51.35, 64.10]
-  }, {
-    name: "哥斯达黎加",
-    position: [-84.02, 9.55]
-  }, {
-    name: "哥伦比亚",
-    position: [-74.00, 4.34]
-  }, {
-    name: "刚果",
-    position: [15.12, -4.09]
-  }, {
-    name: "刚果(扎伊尔)",
-    position: [15.15, -4.20]
-  }, {
-    name: "冈比亚",
-    position: [-16.40, 13.28]
-  }, {
-    name: "福克兰群岛(马尔维纳斯群岛)",
-    position: [-59.51, -51.40]
-  }, {
-    name: "佛得角",
-    position: [-23.34, 15.02]
-  }, {
-    name: "芬兰",
-    position: [25.03, 60.15]
-  }, {
-    name: "斐济",
-    position: [178.30, -18.06]
-  }, {
-    name: "菲律宾",
-    position: [121.03, 14.40]
-  }, {
-    name: "法属圭亚那",
-    position: [-52.18, 5.05]
-  }, {
-    name: "法属波利尼西亚",
-    position: [-149.34, -17.32]
-  }, {
-    name: "法罗群岛",
-    position: [-6.56, 62.05]
-  }, {
-    name: "法国",
-    position: [2.20, 48.50]
-  }, {
-    name: "厄立特里亚",
-    position: [38.55, 15.19]
-  }, {
-    name: "厄瓜多尔",
-    position: [-78.35, -0.15]
-  }, {
-    name: "俄罗斯",
-    position: [37.35, 55.45]
-  }, {
-    name: "多米尼加共和国",
-    position: [-69.59, 18.30]
-  }, {
-    name: "多米尼加",
-    position: [-61.24, 15.20]
-  }, {
-    name: "多哥",
-    position: [1.20, 6.09]
-  }, {
-    name: "东帝汶",
-    position: [125.34, -8.29]
-  }, {
-    name: "德国",
-    position: [13.25, 52.30]
-  }, {
-    name: "丹麦",
-    position: [12.34, 55.41]
-  }, {
-    name: "赤道几内亚",
-    position: [8.50, 3.45]
-  }, {
-    name: "朝鲜",
-    position: [125.30, 39.09]
-  }, {
-    name: "布隆迪",
-    position: [29.18, -3.16]
-  }, {
-    name: "布基纳法索",
-    position: [-1.30, 12.15]
-  }, {
-    name: "不丹",
-    position: [89.45, 27.31]
-  }, {
-    name: "博茨瓦纳",
-    position: [25.57, -24.45]
-  }, {
-    name: "伯利兹",
-    position: [-88.30, 17.18]
-  }, {
-    name: "玻利维亚",
-    position: [-68.10, -16.20]
-  }, {
-    name: "波斯尼亚和黑塞哥维那",
-    position: [18.26, 43.52]
-  }, {
-    name: "波兰",
-    position: [21.00, 52.13]
-  }, {
-    name: "波多黎各",
-    position: [-66.07, 18.28]
-  }, {
-    name: "冰岛",
-    position: [-21.57, 64.10]
-  }, {
-    name: "比利时",
-    position: [4.21, 50.51]
-  }, {
-    name: "比勒陀利亚",
-    position: [28.12, -25.44]
-  }, {
-    name: "贝宁",
-    position: [2.42, 6.23]
-  }, {
-    name: "北马里亚纳群岛",
-    position: [145.45, 15.12]
-  }, {
-    name: "保加利亚",
-    position: [23.20, 42.45]
-  }, {
-    name: "白俄罗斯",
-    position: [27.30, 53.52]
-  }, {
-    name: "巴西",
-    position: [-47.55, -15.47]
-  }, {
-    name: "巴拿马",
-    position: [-79.25, 9.00]
-  }, {
-    name: "巴林",
-    position: [50.30, 26.10]
-  }, {
-    name: "巴拉圭",
-    position: [-57.30, -25.10]
-  }, {
-    name: "巴基斯坦",
-    position: [73.10, 33.40]
-  }, {
-    name: "巴哈马",
-    position: [-77.20, 25.05]
-  }, {
-    name: "巴布亚新几内亚",
-    position: [147.08, -9.24]
-  }, {
-    name: "巴巴多斯",
-    position: [-59.30, 13.05]
-  }, {
-    name: "澳大利亚",
-    position: [149.08, -35.15]
-  }, {
-    name: "阿根廷",
-    position: [-60.00, -36.30]
-  }, {
-    name: "阿富汗",
-    position: [69.11, 34.28]
-  }, {
-    name: "阿尔及利亚",
-    position: [3.08, 36.42]
-  }, {
-    name: "阿尔巴尼亚",
-    position: [19.49, 41.18]
-  }]
+
+    // 球面粒子闪烁 持续循环
+    function animate() {
+        // requestAnimationFrame(animate)
+        let objects = earthParticles.children
+        objects.forEach(obj => {
+            let material = obj.material
+            material.t_ += material.speed_
+            material.opacity = (Math.sin(material.t_) * material.delta_ + material.min_) * material.opacity_coef_
+            material.needsUpdate = true
+        })
+        renderInit() // 执行渲染
+    }
+
+    function createPosition(lnglat) {
+        let spherical = new THREE.Spherical
+        spherical.radius = radius
+        const lng = lnglat[0]
+        const lat = lnglat[1]
+        // const phi = (180 - lng) * (Math.PI / 180)
+        // const theta = (90 + lat) * (Math.PI / 180)
+        const theta = (lng + 90) * (Math.PI / 180)
+        const phi = (90 - lat) * (Math.PI / 180)
+        spherical.phi = phi
+        spherical.theta = theta
+        let position = new THREE.Vector3()
+        position.setFromSpherical(spherical)
+        return position
+    }
+
+    function isLandByUV(c, f) {
+
+        if (!earthImgData) console.error('data error!') // 底图数据
+
+        let n = parseInt(earthImg.width * c) // 根据横纵百分比计算图象坐标系中的坐标
+        o = parseInt(earthImg.height * f) // 根据横纵百分比计算图象坐标系中的坐标
+        return 0 === earthImgData.data[4 * (o * earthImgData.width + n)] // 查找底图中对应像素点的rgba值并判断
+    }
+
+
+
+    let raycaster = new THREE.Raycaster();
+
+    let mouse = new THREE.Vector2();
+
+    function onMouseEarth(event) {
+
+        //通过鼠标点击的位置计算出raycaster所需要的点的位置，以屏幕中心为原点，值的范围为-1到1.
+
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+
+        // 通过鼠标点的位置和当前相机的矩阵计算出raycaster
+        raycaster.setFromCamera(mouse, camera);
+
+        // 获取raycaster直线和所有模型相交的数组集合
+        // let intersects = raycaster.intersectObjects(scene.children);
+
+        // 这里获取的是云层的数据 云层覆盖地球所以能完整监控到地球
+        let intersects = raycaster.intersectObjects(earthBox.children[3].children);
+
+        console.log(intersects);
+
+        //将所有的相交的模型的颜色设置为红色，如果只需要将第一个触发事件，那就数组的第一个模型改变颜色即可
+        // for (let i = 0; i < intersects.length; i++) {
+
+        //     intersects[i].object.material.color.set(0xff0000);
+
+        // }
+
+        // 控制地球的旋转
+        if (intersects.length > 0) onMouseDown(event)
+    }
+
+    earthDom.addEventListener('mousedown', onMouseEarth, false);
+    earthDom.addEventListener('mouseup', onMouseup, false);
+    earthDom.addEventListener('mouseleave', onMouseup, false);
+
 </script>
 
 </html>
