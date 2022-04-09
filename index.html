@@ -49,6 +49,7 @@
         #three {
             width: 100vw;
             height: 100vh;
+            overflow: hidden;
         }
     </style>
 </head>
@@ -119,6 +120,9 @@
    * @param scene 场景  
    * @returns {{satellite: THREE.Mesh, speed: *}} 卫星组合对象;速度  
    */
+    let bezier = []
+    const TIME = 1000 * 6// 入场动效持续时间
+
 
     const initSatellite = (satelliteSize, satelliteRadius, rotation, speedY, speedZ) => {
         // let track = new THREE.Mesh(new THREE.RingGeometry(satelliteRadius, satelliteRadius + 0.15, 50, 1), new THREE.MeshBasicMaterial()); // 轨道
@@ -140,14 +144,22 @@
 
         centerMesh.rotation.set(rotation.x, rotation.y, rotation.z);
         // 设置粒子轨道的坐标并保存,入场动画使用
-        centerMesh.position.set(Math.random() * 2000 - 1000, Math.random() * 300 - 150, Math.random() * 5000)
-        initLiziBoxPosition.push({
-            x: centerMesh.position.x,
-            y: centerMesh.position.y,
-            z: centerMesh.position.z,
-        })
+        centerMesh.position.set(Math.random() * 200 - 100, Math.random() * 400 - 200, Math.random() * 2000)
+        const { x, y, z } = centerMesh.position
+        // initLiziBoxPosition.push({ x,y, z,})
+        // console.log(initLiziBoxPosition);
         scene.add(centerMesh);
         particleBoxList.push(centerMesh)
+
+        // 三次贝塞尔曲线轨迹，粒子在某个时间内遵循该轨迹对应的坐标
+        // 创建v0，v3起始点，v2，v3中间控制点
+        let v0 = new THREE.Vector3(x, y, z)
+        let v1 = new THREE.Vector3(x * 0.8, y * 0.8, z * 0.8)
+        let v2 = new THREE.Vector3(x * 0.0001, y * 0.0001, z * 0.0001)
+        let v3 = new THREE.Vector3(0, 0, 0)
+        let curve = new THREE.CubicBezierCurve3(v0, v1, v2, v3);
+        let points = curve.getPoints(TIME); // 总点位序列数匹配时间(毫秒数)
+        bezier.push(points)
 
         return { satellite: centerMesh, speedY, speedZ };
     };
@@ -173,13 +185,17 @@
     let sprite = generateSprite('0,233,255') // 存储精灵材质
 
 
+
+
+
     main()
+    let earthImgData
     function main() {
         earthImg = document.createElement('img')
         earthImg.src = './images/world.png'
         earthImg.onload = () => {
             let earthCanvas = document.createElement('canvas')
-            earthCtx = earthCanvas.getContext('2d')
+            let earthCtx = earthCanvas.getContext('2d')
             earthCanvas.width = earthImg.width
             earthCanvas.height = earthImg.height
             earthCtx.drawImage(earthImg, 0, 0, earthImg.width, earthImg.height)
@@ -201,19 +217,14 @@
 
             window.addEventListener('resize', onWindowResize, false);
 
-            if (arrive) { // 设定准备在下一次render时初始化精灵以作入场动效
-                arrive = false
-                startTime = new Date().getTime();
-                setTimeout(() => timer = false, TIME);
-            }
+
         }
     }
     let arrive = true
     let timer = true
     let startTime
-    let endPosition = true
-    const TIME = 1000 * 5
-    let initLiziBoxPosition = []
+    let endPosition = true // 表示是否为最后的位置,为false表示该调用正式render了
+    // let initLiziBoxPosition = []
 
 
     //初始化性能插件
@@ -240,8 +251,19 @@
             satellites[i].satellite.rotation.y += satellites[i].speedY;
             satellites[i].satellite.rotation.z += satellites[i].speedZ;
         }
+
+        for (let i = 0; i < bubbleInfo.length; i++) {
+            BubbleScale += 0.005
+            let pos = bubbleInfo[i].scale + (2 * Math.sin(BubbleScale))
+            bubbleBox.children[i].scale.set(pos,pos,pos)
+            bubbleTextBox.children[i].scale.set(pos,pos,pos)
+        }
         renderer.render(scene, camera)
     }
+
+    let BubbleScale = 0
+
+    // 初始化实现动效的render
     function renderInit() {
         stats.update();
 
@@ -249,32 +271,69 @@
             earthBox.rotation.y -= 0.005
             earthBox.rotation.z -= 0.001
         }
+        if (arrive) { // 设定准备在下一次render时初始化精灵以作入场动效
+            arrive = false
+            startTime = new Date().getTime();
+            setTimeout(() => timer = false, TIME);
+        }
+
+
+        for (let i = 0; i < bubbleInfo.length; i++) {
+            BubbleScale += 0.005
+            let pos = bubbleInfo[i].scale + (2 * Math.sin(BubbleScale))
+            bubbleBox.children[i].scale.set(pos,pos,pos)
+            bubbleTextBox.children[i].scale.set(pos,pos,pos)
+        }
 
         for (let i = 0; i < satellites.length; i++) { // 精灵
-            if (!timer) {  // 正常轨迹
+            if (!timer) {  // 设置正常轨迹并调用正式render
                 particleBoxList[i].position.set(0, 0, 0)
                 earthBox.scale.set(1, 1, 1);
                 earthBox.position.set(0, 0, 0)
+                particleBoxList[i].children[0].children[0].material.opacity = 1
+
                 if (i === satellites.length - 1) {
+                    bezier = null
                     endPosition = false
                     render()
                 }
             } else { // 初始化->粒子运动到原本轨迹
                 let remaining = (TIME - (new Date().getTime() - startTime)) // 剩余时间
+                remaining = remaining > 0 ? remaining : 0
+
                 // 初始化坐标值除以总时间乘以剩余时间得到该时间段内应到达的坐标值
+                // 粒子位置更新   匀速
+                // let x = (initLiziBoxPosition[i].x / TIME) * remaining
+                // let y = (initLiziBoxPosition[i].y / TIME) * remaining
+                // let z = (initLiziBoxPosition[i].z / TIME) * remaining
+                // particleBoxList[i].position.set(x, y, z)
 
-                let x = (initLiziBoxPosition[i].x / TIME) * remaining
-                let y = (initLiziBoxPosition[i].y / TIME) * remaining
-                let z = (initLiziBoxPosition[i].z / TIME) * remaining
-
-                let eart = 1 - (0.6 / TIME * remaining)
-                let eartPositiony = (-100 / TIME * remaining)
-                // let eartPositionz =  (-100 / TIME * remaining)
-
-                earthBox.scale.set(eart, eart, eart);
-                earthBox.position.set(0, eartPositiony, 0);
+                // 粒子位置更新   贝塞尔曲线轨迹
+                // console.log(TIME - remaining);
+                const { x, y, z } = bezier[i][TIME - remaining]
                 particleBoxList[i].position.set(x, y, z)
 
+                // 摄像机根据几何体的位置进行投影(视角中心始终对其该几何体)
+                camera.lookAt(particleBoxList[i].position)  
+
+
+                // 地球大小更新
+                let eart = 1 - (0.6 / TIME * remaining)
+                earthBox.scale.set(eart, eart, eart);
+
+                // 地球位置更新
+                let eartPositiony = (-100 / TIME * remaining)
+                // let eartPositionz =  (-100 / TIME * remaining)
+                earthBox.position.set(0, eartPositiony, 0);
+
+
+
+
+                // 粒子透明度更新
+                let opacity = 1 - (1 / TIME) * remaining
+                particleBoxList[i].children[0].children[0].material.opacity = opacity
+
+                // 地球粒子颜色
                 // earthParticles.children[0].material.color = {
                 //   b: 0.036,
                 //   g:0.0155,
@@ -285,15 +344,70 @@
                 //   g:0.0155,
                 //   r: 0.037
                 // }
-
             }
         }
+
         if (endPosition) {
             requestAnimationFrame(renderInit)
             renderer.render(scene, camera)
         }
 
     }
+
+
+    const bubbleInfo = [
+        {
+            position: { x: -126, y: 75, z: 110 },
+            scale: 42,
+            map: new THREE.CanvasTexture(getTextCanvas('数聚佳'))
+
+        },
+        {
+            position: { x: -150, y: -20, z: 110 },
+            scale: 42,
+            map: new THREE.CanvasTexture(getTextCanvas('景管佳'))
+
+        },
+        {
+            position: { x: -105, y: -76, z: 110 },
+            scale: 42,
+            map: new THREE.CanvasTexture(getTextCanvas('乡管佳'))
+
+        },
+        {
+            position: { x: -42, y: -105, z: 110 },
+            scale: 42,
+            map: new THREE.CanvasTexture(getTextCanvas('力石小知'))
+
+        },
+        {
+            position: { x: 75, y: -90, z: 110 },
+            scale: 42,
+            map: new THREE.CanvasTexture(getTextCanvas('产业佳'))
+
+        },
+        {
+            position: { x: 133, y: -45, z: 110 },
+            scale: 42,
+            map: new THREE.CanvasTexture(getTextCanvas('游管佳'))
+
+        },
+        {
+            position: { x: 175, y: 25, z: 110 },
+            scale: 42,
+            map: new THREE.CanvasTexture(getTextCanvas('票务佳'))
+
+        },
+        {
+            position: { x: 120, y: 90, z: 110 },
+            scale: 42,
+            map: new THREE.CanvasTexture(getTextCanvas('力石PAY'))
+
+        },
+    ]
+
+    let bubbleBox = new THREE.Object3D();
+    let bubbleTextBox = new THREE.Object3D();
 
 
     function createBasicScene() {
@@ -339,6 +453,128 @@
         }
         earthTrack.name = 'earthTrack'
         earthBox.add(earthTrack)
+
+        const bubbleMap = new THREE.SpriteMaterial({ // 气泡材质
+            map: new THREE.TextureLoader().load('./images/circle.png'),
+            blending: THREE.AdditiveBlending
+        })
+
+        for (let i = 0; i < bubbleInfo.length; i++) {
+            let bubble = new THREE.Sprite(bubbleMap);
+            const { x, y, z } = bubbleInfo[i].position
+            const scale = bubbleInfo[i].scale
+            bubble.position.set(x, y, z);
+            // bubble.scale.set(0, 0, 0);
+            bubble.scale.set(scale, scale, scale);
+            bubble.name = i
+            bubbleBox.add(bubble)
+
+        }
+        scene.add(bubbleBox)
+
+        for (let i = 0; i < bubbleInfo.length; i++) {
+            const bubbleMapText = new THREE.SpriteMaterial({ // 气泡文字
+                map: bubbleInfo[i].map,
+                blending: THREE.AdditiveBlending
+            })
+            let bubbleText = new THREE.Sprite(bubbleMapText);
+            const { x, y, z } = bubbleInfo[i].position
+            const scale = bubbleInfo[i].scale
+            bubbleText.position.set(x, y, z);
+            // bubbleText.scale.set(0, 0, 0);
+            bubbleText.scale.set(scale, scale, scale);
+            bubbleText.name = 'text' + i
+            bubbleTextBox.add(bubbleText)
+
+        }
+        scene.add(bubbleTextBox)
+    }
+
+    // function makeTextSprite (message, i, parameters) {
+    //         if (parameters === undefined) parameters = {}
+    //         var fontface = parameters.hasOwnProperty("fontface") ? parameters["fontface"] : "Arial"
+    //         /* 字体大小 */
+    //         var fontsize = parameters.hasOwnProperty("fontsize") ? parameters["fontsize"] : 30
+    //         /* 边框厚度 */
+    //         var borderThickness = parameters.hasOwnProperty("borderThickness") ? parameters["borderThickness"] : 30
+    //         /* 边框颜色 */
+    //         var borderColor = parameters.hasOwnProperty("borderColor") ? parameters["borderColor"] : {
+    //             r: 0,
+    //             g: 0,
+    //             b: 0,
+    //             a: 1.0
+    //         }
+    //         /* 背景颜色 */
+    //         var backgroundColor = parameters.hasOwnProperty("backgroundColor") ? parameters["backgroundColor"] : {
+    //             r: 255,
+    //             g: 255,
+    //             b: 255,
+    //             a: 1.0
+    //         }
+
+    //         let bgImg = document.createElement('img')
+    //         bgImg.src = './images/circle.png'
+    //         /* 创建画布 */
+    //         var canvas = document.createElement('canvas')
+    //         var context = canvas.getContext('2d')
+    //         bgImg.onload = () => {
+    //             context.drawImage(bgImg, 0, 0, 200, 100)
+    //         }
+    //         /* 字体加粗 */
+    //         context.font = "Bold " + fontsize + "px " + fontface
+    //         /* 获取文字的大小数据，高度取决于文字的大小 */
+    //         var metrics = context.measureText(message)
+    //         var textWidth = 100
+    //         /* 背景颜色 */
+    //         // context.fillStyle = "rgba(" + backgroundColor.r + "," + backgroundColor.g + "," + backgroundColor.b + "," +
+    //         //     backgroundColor.a + ")"
+    //         /* 边框的颜色 */
+    //         // context.strokeStyle = "rgba(" + borderColor.r + "," + borderColor.g + "," + borderColor.b + "," + borderColor
+    //         //     .a + ")"
+    //         // context.lineWidth = borderThickness
+    //         /* 字体颜色 */
+    //         context.fillStyle = "rgba(255, 255, 255, 1.0)"
+    //         context.fillText(message, borderThickness, fontsize + borderThickness)
+    //         /* 画布内容用于纹理贴图 */
+
+    //         var texture = new THREE.Texture(canvas)
+    //         texture.needsUpdate = true
+
+    //         var spriteMaterial = new THREE.SpriteMaterial({
+    //             map: texture
+    //         })
+    //         var sprite = new THREE.Sprite(spriteMaterial)
+    //         /* 缩放比例 */
+    //         // sprite.scale.set(10, 5, 0)
+    //         // console.log(sprite);
+
+    //         const { x, y, z } = bubbleInfo[i].position
+    //         const scale = bubbleInfo[i].scale
+    //         sprite.position.set(x, y, z);
+    //         // sprite.scale.set(0, 0, 0);
+    //         sprite.scale.set(scale, scale, scale);
+    //         sprite.name = i
+    //         // return sprite
+    //         bubbleBox.add(sprite)
+    //     }
+
+
+
+    function getTextCanvas(text) {
+        let width = 256, height = 256;
+        let canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        let ctx = canvas.getContext('2d');
+        // ctx.fillStyle = '#C3C3C3';
+        // ctx.fillStyle = '#FFFFFF';
+        // ctx.fillRect(0, 0, width, height);
+        ctx.font = 50 + 'px " Arial';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, width / 2, height / 2);
+        return canvas;
     }
 
     // 地标
@@ -471,7 +707,7 @@
         for (var i = 0; i < 2; i++) {
             positions[i] = { positions: [] }
             sizes[i] = { sizes: [] }
-            mat = new THREE.PointsMaterial()
+            let mat = new THREE.PointsMaterial()
             mat.size = 8 // 粒子大小
             mat.color = new THREE.Color(hexagonColor[0])
             mat.map = dotTexture
@@ -498,8 +734,8 @@
                 let c = j / step, // 底图上的横向百分比
                     f = i / step, // 底图上的纵向百分比
                     index = Math.floor(2 * Math.random())
-                pos = positions[index]
-                size = sizes[index]
+                let pos = positions[index]
+                let size = sizes[index]
                 if (isLandByUV(c, f)) { // 根据横纵百分比判断在底图中的像素值
                     spherical.theta = c * Math.PI * 2 - Math.PI / 2 // 横纵百分比转换为theta和phi夹角
                     spherical.phi = f * Math.PI // 横纵百分比转换为theta和phi夹角
@@ -532,7 +768,7 @@
         earthParticles.name = 'earthParticles'
         earthBox.add(earthParticles)
         scene.add(earthBox)
-        console.log(earthBox);
+        // console.log(earthBox);
 
     }
 
@@ -595,8 +831,11 @@
 
         // 这里获取的是云层的数据 云层覆盖地球所以能完整监控到地球
         let intersects = raycaster.intersectObjects(earthBox.children[3].children);
+        // console.log(intersects);
 
-        console.log(intersects);
+
+        let intersectsButton = raycaster.intersectObjects(bubbleBox.children);
+        // console.log(intersectsButton[0].object.name);
 
         //将所有的相交的模型的颜色设置为红色，如果只需要将第一个触发事件，那就数组的第一个模型改变颜色即可
         // for (let i = 0; i < intersects.length; i++) {
@@ -607,6 +846,7 @@
 
         // 控制地球的旋转
         if (intersects.length > 0) onMouseDown(event)
+        if (intersectsButton.length > 0) console.log(intersectsButton[0].object.name);
     }
 
     earthDom.addEventListener('mousedown', onMouseEarth, false);
