@@ -3,6 +3,7 @@
 #### 介绍
 three.js 地球与粒子 
 
+预览: https://id-emmett.github.io/three-earth/
 #### 软件架构
 软件架构说明
 
